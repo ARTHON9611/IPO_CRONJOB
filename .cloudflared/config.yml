@@ -1,0 +1,18 @@
+# cloudflared tunnel configuration
+# This exposes the local Next.js app through a Cloudflare Tunnel so it gets a
+# public HTTPS URL and can be placed behind Cloudflare Access (Zero Trust).
+#
+# Replace <YOUR-TUNNEL-UUID> with your tunnel's ID (from `cloudflared tunnel create`).
+# Set your app's URL in the ingress rule.
+tunnel: <YOUR-TUNNEL-UUID>
+credentials-file: C:\Users\Arthon\Projects\IPO_TEST\.cloudflared\<YOUR-TUNNEL-UUID>.json
+
+# The ingress rules map public hostnames to local/upstream origins.
+ingress:
+  # Live site -> your Vercel (or local) app.
+  # If deploying on Vercel, point originUrl to your Vercel app URL and
+  # you can run the tunnel from anywhere (it proxies to the public origin).
+  - hostname: ipoboard.example.com
+    service: http://localhost:3000
+  # Match-all fallback: cloudflared requires a final catch-all.
+  - service: http_status:404
