@@ -5,7 +5,11 @@ import { hasRedis, getCached } from "@/lib/redis";
 export const runtime = "nodejs";
 
 const IPO_CACHE_KEY = "ipos:calendar";
-const IPO_CACHE_TTL = 60;
+// Long TTL on purpose: the page revalidates every 60s, so an equal/short TTL
+// phase-locks expiry with regeneration and EVERY generation misses. With a
+// long TTL, regenerations always hit Redis; freshness is handled by explicit
+// invalidation in lib/sync.js on every data write, not by expiry.
+const IPO_CACHE_TTL = 86400;
 
 export async function GET() {
   if (!hasSupabaseConfig) {
