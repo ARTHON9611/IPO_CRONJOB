@@ -40,8 +40,26 @@ export async function POST(request) {
     // Instantly refresh the ISR-cached homepage (Vercel edge + any CDN)
     // so the new data is visible immediately instead of waiting for revalidate.
     revalidatePath("/");
-    return NextResponse.json({ ok: true, ...result });
+    const purged = await purgeEdge();
+    return NextResponse.json({ ok: true, edgePurged: purged, ...result });
   } catch (err) {
     return NextResponse.json({ ok: false, error: err.message }, { status: 500 });
+  }
+}
+
+async function purgeEdge() {
+  const purgeUrl = process.env.WORKER_PURGE_URL;
+  const purgeToken = process.env.WORKER_PURGE_TOKEN;
+  if (!purgeUrl || !purgeToken) return false;
+  try {
+    const res = await fetch(purgeUrl, {
+      method: "POST",
+      headers: { "x-purge-token": purgeToken },
+      signal: AbortSignal.timeout(10000),
+    });
+    return res.ok;
+  } catch (err) {
+    console.error("Edge purge failed (edge copy expires by TTL):", err.message);
+    return false;
   }
 }

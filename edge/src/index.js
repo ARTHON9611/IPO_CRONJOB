@@ -3,6 +3,7 @@
  *
  * - GET /            -> cached at the edge for 60s (Cache API, explicit TTL).
  * - /admin/*, /api/* -> always passed through to origin, never cached.
+ * - POST /__purge    -> deletes the cached homepage (x-purge-token required).
  * - Everything else (/_next/*, static) -> passed through (Vercel handles it).
  * - Adds `x-edge-cache: HIT|MISS` so edge behavior is observable.
  */
@@ -23,6 +24,22 @@ function isBypass(url) {
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    const cache = caches.default;
+    // Vary the cache key on nothing but the path — one shared copy for all users.
+    const cacheKey = new Request(ORIGIN + "/", { method: "GET" });
+
+    // Edge purge, called by /admin/sync after each data sync so visitors see
+    // fresh data immediately instead of waiting out the 60s edge TTL.
+    if (url.pathname === "/__purge") {
+      const token = request.headers.get("x-purge-token");
+      if (request.method === "POST" && token && env.PURGE_TOKEN && token === env.PURGE_TOKEN) {
+        await cache.delete(cacheKey);
+        return new Response(JSON.stringify({ purged: true }), {
+          headers: { "content-type": "application/json" },
+        });
+      }
+      return new Response("forbidden", { status: 403 });
+    }
 
     // Never cache admin/API — always fresh from origin.
     if (isBypass(url)) {
@@ -35,10 +52,6 @@ export default {
     if (!isCacheable(request, url)) {
       return fetch(ORIGIN + url.pathname + url.search, request);
     }
-
-    const cache = caches.default;
-    // Vary the cache key on nothing but the path — one shared copy for all users.
-    const cacheKey = new Request(ORIGIN + "/", { method: "GET" });
 
     let cached = await cache.match(cacheKey);
     if (cached) {

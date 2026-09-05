@@ -94,3 +94,17 @@ npm run start    # production server
 
 The `redis·cached` / `db·direct` pill in the UI shows which data source served
 the current render — handy for verifying the cache is working.
+
+## One-time Supabase migration (required for bulk sync + freshness)
+
+Run `supabase/migrations/20260905_cache_hardening.sql` once in the Supabase
+dashboard (SQL editor). It adds `updated_at` and a unique index on
+`company_name`. The sync code keeps working without it (automatic per-row
+fallback), but slower — and `/api/health` reports freshness "unknown".
+
+## Freshness monitoring
+
+`GET /api/health` returns `{ ok, count, latestUpdatedAt, stale }` (503 when
+stale). Point any uptime monitor (UptimeRobot, BetterStack) at it and alert
+when it stops returning 200 — that covers cron failures, API outages, and
+stale data in one check.

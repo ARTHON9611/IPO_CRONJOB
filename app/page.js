@@ -82,8 +82,8 @@ export default async function Home() {
           <div className="section-bar-tools">
             <span>{ipos.length} issues</span>
             {cacheInfo && (
-              <span className={`cache-pill ${cacheInfo.from === "redis" ? "cache-hit" : "cache-miss"}`} title="Data source">
-                {cacheInfo.from === "redis" ? "redis·cached" : "db·direct"}
+              <span className={`cache-pill ${cacheInfo.from === "redis" ? "cache-hit" : cacheInfo.from === "stale" ? "cache-stale" : "cache-miss"}`} title="Data source">
+                {cacheInfo.from === "redis" ? "redis·cached" : cacheInfo.from === "stale" ? "stale·cache" : "db·direct"}
               </span>
             )}
           </div>

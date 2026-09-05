@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
+import { Ratelimit } from "@upstash/ratelimit";
 import { hasSupabaseConfig, supabase } from "@/lib/supabase";
-import { hasRedis, getCached } from "@/lib/redis";
+import { hasRedis, redis, getCached } from "@/lib/redis";
 
 export const runtime = "nodejs";
 
@@ -11,9 +12,30 @@ const IPO_CACHE_KEY = "ipos:calendar";
 // invalidation in lib/sync.js on every data write, not by expiry.
 const IPO_CACHE_TTL = 86400;
 
-export async function GET() {
+// Generous per-IP budget for humans; scrapers hammering the origin directly
+// (bypassing the edge cache) get 429s. Fails OPEN if Redis is unreachable.
+const ratelimit = hasRedis
+  ? new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(100, "1 m"), prefix: "rl:ipos" })
+  : null;
+
+function clientIp(request) {
+  return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
+}
+
+export async function GET(request) {
   if (!hasSupabaseConfig) {
     return NextResponse.json({ ipos: [], error: "Missing Supabase public credentials." }, { status: 500 });
+  }
+
+  if (ratelimit) {
+    try {
+      const { success } = await ratelimit.limit(clientIp(request));
+      if (!success) {
+        return NextResponse.json({ ipos: [], error: "Rate limited, try again shortly." }, { status: 429 });
+      }
+    } catch (err) {
+      console.error("Ratelimit failed open:", err.message);
+    }
   }
 
   const fetcher = async () => {
