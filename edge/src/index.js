@@ -21,6 +21,14 @@ function isBypass(url) {
   return url.pathname.startsWith("/admin/") || url.pathname.startsWith("/api/");
 }
 
+// Fetch origin with the shared testing secret stamped on, so the origin
+// middleware can tell Worker traffic apart from direct hits.
+function originFetch(path, request, env) {
+  const headers = new Headers(request.headers);
+  if (env.EDGE_SECRET) headers.set("x-edge-secret", env.EDGE_SECRET);
+  return fetch(ORIGIN + path, { method: request.method, headers, body: request.body });
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -43,14 +51,14 @@ export default {
 
     // Never cache admin/API — always fresh from origin.
     if (isBypass(url)) {
-      const res = await fetch(ORIGIN + url.pathname + url.search, request);
+      const res = await originFetch(url.pathname + url.search, request, env);
       const out = new Response(res.body, res);
       out.headers.set("x-edge-cache", "BYPASS");
       return out;
     }
 
     if (!isCacheable(request, url)) {
-      return fetch(ORIGIN + url.pathname + url.search, request);
+      return originFetch(url.pathname + url.search, request, env);
     }
 
     let cached = await cache.match(cacheKey);
@@ -60,7 +68,7 @@ export default {
       return hit;
     }
 
-    const res = await fetch(ORIGIN + "/", request);
+    const res = await originFetch("/", request, env);
     // Buffer once — a body stream can only be consumed a single time, and we
     // need it twice (client response + edge-cache copy).
     const buf = await res.arrayBuffer();
