@@ -2,7 +2,7 @@ name: Daily IPO Sync
 
 on:
   schedule:
-    - cron: '22 13 * * *' 
+    - cron: '35 13 * * *' 
   workflow_dispatch: # Allows you to click a button to run it manually
 
 jobs:
