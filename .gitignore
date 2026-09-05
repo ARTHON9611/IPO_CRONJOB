@@ -6,3 +6,6 @@ node_modules/
 .next/
 # Cloudflare tunnel credentials (never commit these)
 .cloudflared/*.json
+
+.vercel
+.env*

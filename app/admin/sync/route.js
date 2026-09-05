@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { syncOpenIpos } from "@/lib/sync";
 
 export const runtime = "nodejs";
@@ -36,6 +37,9 @@ export async function POST(request) {
 
   try {
     const result = await syncOpenIpos();
+    // Instantly refresh the ISR-cached homepage (Vercel edge + any CDN)
+    // so the new data is visible immediately instead of waiting for revalidate.
+    revalidatePath("/");
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {
     return NextResponse.json({ ok: false, error: err.message }, { status: 500 });

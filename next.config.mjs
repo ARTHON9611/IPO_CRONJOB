@@ -1,19 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  async headers() {
-    return [
-      {
-        // Let the edge CDN (Cloudflare) cache the IPO calendar HTML for a short window.
-        // s-maxage: CDN cache time; stale-while-revalidate lets the CDN serve stale
-        // instantly while fetching a fresh copy in the background. The Redis layer
-        // at the origin absorbs the revalidation load.
-        source: "/",
-        headers: [
-          { key: "Cache-Control", value: "s-maxage=60, stale-while-revalidate=300" },
-        ],
-      },
-    ];
-  },
+  // Edge caching is owned by ISR: app/page.js sets `revalidate = 60`, so Next
+  // emits `s-maxage` itself and any CDN (Vercel edge, Cloudflare) can cache.
+  // On-demand refresh happens via revalidatePath("/") in app/admin/sync/route.js.
 };
 
 export default nextConfig;

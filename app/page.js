@@ -1,11 +1,6 @@
-import { hasSupabaseConfig, supabase } from "@/lib/supabase";
-import { hasRedis, getCached } from "@/lib/redis";
 import Link from "next/link";
 
-export const dynamic = "force-dynamic";
-
-const IPO_CACHE_KEY = "ipos:calendar";
-const IPO_CACHE_TTL = 60;
+export const revalidate = 60;
 
 function formatDate(value) {
   if (!value) return "TBA";
@@ -34,23 +29,25 @@ function statusClass(status) {
 }
 
 async function getIpos() {
-  if (!hasSupabaseConfig) return { ipos: [], error: "Missing Supabase public credentials." };
-
-  const fetcher = async () => {
-    const { data, error } = await supabase
-      .from("ipos")
-      .select(
-        "id, company_name, issue_type, open_date, close_date, listing_date, price_band_low, price_band_high, lot_size, issue_size_cr, status",
-      )
-      .order("open_date", { ascending: true, nullsFirst: false });
-    if (error) throw new Error(error.message);
-    return data ?? [];
-  };
+  // Fetch the same-origin API route with ISR caching. This keeps all
+  // no-store SDK fetches (Upstash/Supabase) inside the dynamic API route so
+  // this page prerenders statically and serves `s-maxage` at the edge.
+  // NOTE: no headers()/cookies() here — those Dynamic APIs would force the
+  // page dynamic and kill ISR. Base URL comes from env instead.
+  // Prefer the stable public alias (NEXT_PUBLIC_SITE_URL): Vercel's
+  // auto VERCEL_URL points at the gated deployment URL (Deployment
+  // Protection returns an HTML login page there, breaking self-fetch).
+  const baseUrl =
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
 
   try {
-    const { data, error, from, info } = await getCached(IPO_CACHE_KEY, IPO_CACHE_TTL, fetcher);
-    if (error) return { ipos: [], error };
-    return { ipos: data, error: null, cacheInfo: hasRedis ? { from, info } : null };
+    const res = await fetch(`${baseUrl}/api/ipos`, { next: { revalidate: 60 } });
+    if (!res.ok) return { ipos: [], error: `API responded with status ${res.status}` };
+    const payload = await res.json();
+    if (payload.error) return { ipos: [], error: payload.error };
+    const cacheInfo = payload.redis ? { from: payload.from } : null;
+    return { ipos: payload.ipos ?? [], error: null, cacheInfo };
   } catch (err) {
     return { ipos: [], error: err.message };
   }
