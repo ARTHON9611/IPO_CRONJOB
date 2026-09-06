@@ -8,7 +8,7 @@
  * - Adds `x-edge-cache: HIT|MISS` so edge behavior is observable.
  */
 
-const ORIGIN = "https://ipo-tracker-phi.vercel.app";
+const ORIGIN = "https://ipo.arthon.dev";
 const EDGE_TTL_SECONDS = 60;
 
 function isCacheable(request, url) {

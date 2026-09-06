@@ -42,8 +42,7 @@ async function getIpos() {
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
 
   try {
-    const headers = { ...(process.env.EDGE_SECRET ? { "x-edge-secret": process.env.EDGE_SECRET } : {}) };
-    const res = await fetch(`${baseUrl}/api/ipos`, { next: { revalidate: 60 }, headers });
+    const res = await fetch(`${baseUrl}/api/ipos`, { next: { revalidate: 60 } });
     if (!res.ok) return { ipos: [], error: `API responded with status ${res.status}` };
     const payload = await res.json();
     if (payload.error) return { ipos: [], error: payload.error };

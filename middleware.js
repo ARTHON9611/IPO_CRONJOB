@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
 
-// TEMPORARY testing lock: only requests carrying the shared edge secret
-// (stamped by the Cloudflare Worker) may reach the origin directly.
-// Exempt: localhost (local dev), /api/health (uptime monitors can't send
-// custom headers on all plans). Fail OPEN when unconfigured so a missing
-// env var can never take the site down — remove this once the custom
-// domain + Cloudflare firewall replace it.
+// Canonical-host enforcement: the app's public face is https://ipo.arthon.dev
+// (Cloudflare-proxied). Direct hits to other hosts (e.g. *.vercel.app) are
+// redirected to canonical, except:
+// - localhost (local dev)
+// - /api/health (uptime monitors may check any URL)
+const CANONICAL_HOST = "ipo.arthon.dev";
+
 export function middleware(request) {
-  const host = request.headers.get("host") || "";
+  const host = (request.headers.get("host") || "").split(":")[0].toLowerCase();
+
   if (host.startsWith("localhost") || host.startsWith("127.")) {
     return NextResponse.next();
   }
@@ -16,14 +18,15 @@ export function middleware(request) {
     return NextResponse.next();
   }
 
-  const secret = process.env.EDGE_SECRET;
-  if (!secret) return NextResponse.next();
-
-  if (request.headers.get("x-edge-secret") === secret) {
+  if (host === CANONICAL_HOST) {
     return NextResponse.next();
   }
 
-  return new NextResponse("Direct origin access disabled during testing.", { status: 403 });
+  const url = request.nextUrl.clone();
+  url.host = CANONICAL_HOST;
+  url.protocol = "https:";
+  url.port = "";
+  return NextResponse.redirect(url, 301);
 }
 
 export const config = {
